@@ -75,7 +75,7 @@ subdomain_combiner(){
 
 
 
-
+auto_recon(){
 # Color variables
 red='\033[0;31m'
 green='\033[0;32m'
@@ -126,8 +126,88 @@ else
 			count=`expr $count + 1`
 		done
 	fi
+}
 
 
+
+
+
+check_alive(){
+red='\033[0;31m'
+green='\033[0;32m'
+yellow='\033[0;33m'
+blue='\033[0;34m'
+magenta='\033[0;35m'
+cyan='\033[0;36m'
+clr='\033[0m'
+
+if [ ! -f $1 ];then
+		echo "Please provide a text file containing assets to scan..!"
+		echo "Example: autorecon.sh assets.txt"
+else
+		pwd=$(pwd)
+		arr=()
+		while IFS= read -r line; do
+		arr+=("$line")
+		done <$pwd/$1	
+
+		indexes=( "${!arr[@]}" )
+		lastindex=${indexes[-1]}
+		lastindex=`expr $lastindex +  1`
+		count=1
+		
+		for i in "${arr[@]}"
+			do
+				filepath=$(find / -type d -name $i 2>/dev/null | head -n 1)
+				if [ -z "$filepath" ]; then
+					echo "Subdomain haven't recon yet. Please recon it before checking for new alive targets..!"
+				else
+					echo " "
+					echo -e "${cyan}Scanning $i ${blue}       [ $count/$lastindex ] ${clr}"
+					start_time=$(date +%s)
+					
+					cd $filepath
+					if [ -d current_alive ]; then
+						rm -rf current_alive
+					fi
+					mkdir current_alive
+					cd current_alive
+					echo "Checking for new alive targets..."
+					recon "$i" > /dev/null 2>&1
+
+					diff -u $filepath/ALIVE.txt $filepath/current_alive/$i/ALIVE.txt | sed -n '/^+[^+]/ s/^+//p' > new_alive_targets.txt
+					rm -rf $i 
+
+					end_time=$(date +%s)
+					echo -e "${red}$i completed in $(($end_time-$start_time)) seconds..!${clr}"
+					if [ $count -eq $lastindex ];then
+						echo -e "\n${yellow}Hurray!!! Completed recon. ${clr}"
+						echo -e "New targets are saved into new_alive_targets.txt under current_alive directory of the subdomain directory"
+					fi
+				fi
+				count=`expr $count + 1`
+			done
+fi
+}
+
+
+
+while getopts r:a: flag
+do
+    case "${flag}" in
+        r) textfile=${OPTARG}
+		auto_recon $textfile 
+		;;
+
+        a) textfile=${OPTARG}
+		check_alive $textfile 
+		;;
+
+		*) 
+		echo "Please specify an argument"
+		;;
+    esac
+done
 
 
 
