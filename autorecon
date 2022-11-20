@@ -33,7 +33,7 @@ recon () {
 		# sleep 1
 
 		echo "Gathering information form findomain..."
-		findomain-linux -t $domain -u findomain.txt > /dev/null 2>&1 &
+		findomain -t $domain -u findomain.txt > /dev/null 2>&1 &
 		sleep 1
 
 		wait
