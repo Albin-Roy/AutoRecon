@@ -1,5 +1,15 @@
 #!/bin/bash
 
+color_varibles(){
+	# Color variables
+	red='\033[0;31m'
+	green='\033[0;32m'
+	yellow='\033[0;33m'
+	blue='\033[0;34m'
+	magenta='\033[0;35m'
+	cyan='\033[0;36m'
+	clr='\033[0m'
+}
 
 recon () {
 	domain=$1
@@ -119,14 +129,8 @@ subdomain_combiner(){
 
 
 auto_recon(){
-# Color variables
-red='\033[0;31m'
-green='\033[0;32m'
-yellow='\033[0;33m'
-blue='\033[0;34m'
-magenta='\033[0;35m'
-cyan='\033[0;36m'
-clr='\033[0m'
+
+color_varibles #calling color variables
 
 input_file=$1
 if [ ! -f $input_file ];then
@@ -178,13 +182,8 @@ else
 
 
 check_alive(){
-red='\033[0;31m'
-green='\033[0;32m'
-yellow='\033[0;33m'
-blue='\033[0;34m'
-magenta='\033[0;35m'
-cyan='\033[0;36m'
-clr='\033[0m'
+
+color_varibles #calling color variables
 
 input_file=$1
 if [ ! -f $input_file ];then
