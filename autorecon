@@ -2,34 +2,38 @@
 
 
 recon () {
-	if [ ! -d $1 ]; then
-		mkdir $1
-		cd $1
+	domain=$1
+	if [ ! -d $domain ]; then
+		mkdir $domain
+		cd $domain
 		if [ ! -d "scans" ]; then
 			mkdir scans
 		fi
 
+		if [ ! -d "waybackurls" ]; then
+			mkdir waybackurls
+		fi
 
 		pwd=$(pwd)
 
-		echo "Gathering information from amass..."
-		amass enum -d $1 -o amass.txt > /dev/null 2>&1 &
-		sleep 1
+		# echo "Gathering information from amass..."
+		# amass enum -d $domain -o amass.txt > /dev/null 2>&1 &
+		# sleep 1
 
 		echo "Gathering information from crtsh..."
-		crtsh -d $1 >> crtsh.txt &
+		crtsh -d $domain >> crtsh.txt &
 		sleep 1
 
 		echo "Gathering information from assetfinder..."
-		assetfinder --subs-only $1 >> assetfinder.txt &
+		assetfinder --subs-only $domain >> assetfinder.txt &
 		sleep 1
 
-		echo "Gathering information from sublist3r..."
-		sublist3r -d $1 -o sublister.txt > /dev/null 2>&1 &
-		sleep 1
+		# echo "Gathering information from sublist3r..."
+		# sublist3r -d $domain -o sublister.txt > /dev/null 2>&1 &
+		# sleep 1
 
 		echo "Gathering information form findomain..."
-		findomain-linux -t $1 -u findomain.txt > /dev/null 2>&1 &
+		findomain-linux -t $domain -u findomain.txt > /dev/null 2>&1 &
 		sleep 1
 
 		wait
@@ -39,19 +43,55 @@ recon () {
 		sleep 2
 
 		echo "Removing duplicates..."
-		cat SUBDOMAINS.txt | sort -u > subdomains-UNIQUE.txt
+		sort -u SUBDOMAINS.txt > subdomains-UNIQUE.txt
 		sleep 2
 
 		echo "Checking alive targets..."
-		cat subdomains-UNIQUE.txt | httprobe -c 100 | sed 's/https\?:\/\///' > ALIVE.txt
+		cat subdomains-UNIQUE.txt | httprobe -c 100 | sed 's/https\?:\/\///' | sort -u > ALIVE.txt
 		sleep 2
 
-		echo  "Scanning for open ports..."
-		nmap -iL ALIVE.txt -T5 -oA scans/scanned.txt > /dev/null 2>&1 &		#rustscan
-		sleep 1
 
+		portscanning(){
+		echo  "Scanning for open ports..."
+		arr=()
+		readarray arr < ALIVE.txt
+		for hostname in "${arr[@]}"
+		do
+			dig $hostname A +short >> ip.txt 
+		done
+		sort -u ip.txt | grep -oE '((1?[0-9][0-9]?|2[0-4][0-9]|25[0-5])\.){3}(1?[0-9][0-9]?|2[0-4][0-9]|25[0-5])' > ips.txt
+		masscan -iL ips.txt -p0-65535 --rate=10000 -oL scans/openports.txt > /dev/null 2>&1
+		rm ip.txt
+		#rustscan -u 5000 -a 'final_assets.txt' | grep "^Open" > scans/openports.txt &
+		#nmap -iL ALIVE.txt -T5 -oA scans/scanned.txt > /dev/null 2>&1 &		#rustscan
+		sleep 1
+		}
+
+		collect_archives(){
+		echo "Collecting archives..."
+		arr=()
+		readarray arr < ALIVE.txt
+		for hostname in "${arr[@]}"
+		do
+			waybackurls $hostname > waybackurls/"$hostname".txt
+		done
+		} 
+
+		screenshots(){
 		echo "Taking screenshots..."
-		eyewitness -f $pwd/ALIVE.txt -d screenshots --no-prompt > /dev/null 2>&1	#gowitness
+		gowitness file -f $pwd/ALIVE.txt --disable-logging
+		#eyewitness -f $pwd/ALIVE.txt -d screenshots --no-prompt > /dev/null 2>&1	#gowitness
+		}
+
+
+		portscanning &
+		sleep 3
+		collect_archives &
+		sleep 3
+		screenshots &
+		sleep 3
+
+		wait
 		cd ..
 	fi
 
@@ -62,15 +102,17 @@ subdomain_combiner(){
 	#collects all alive subdomains and combine it into a single file
 	pwd=$(pwd)
 	arr=()
-	while IFS= read -r line; do
-	arr+=("$line")
-	done < <(find $pwd -type f -name "ALIVE.txt")
+	# while IFS= read -r line; do
+	# arr+=("$line")
+	# done < <(find $pwd -type f -name "ALIVE.txt")
+	readarray arr < <(find $pwd -type f -name "ALIVE.txt")
+
 
 	cd ..
 	pwd=$(pwd)
-	for i in "${arr[@]}"
+	for subdomain in "${arr[@]}"
 	do
-		cat $i >> $pwd/all-subdomains.txt
+		cat $subdomain >> $pwd/all-subdomains.txt
 	done
 }
 
@@ -86,16 +128,18 @@ magenta='\033[0;35m'
 cyan='\033[0;36m'
 clr='\033[0m'
 
-if [ ! -f $1 ];then
+input_file=$1
+if [ ! -f $input_file ];then
 		echo "Please provide a text file containing assets to scan..!"
 		echo "Example: autorecon.sh assets.txt"
 else
 		pwd=$(pwd)
 
 		arr=()
-		while IFS= read -r line; do
-		arr+=("$line")
-		done <$pwd/$1
+		# while IFS= read -r line; do
+		# arr+=("$line")
+		# done <$pwd/$input_file
+		readarray arr <$pwd/$input_file
 
 		if [ ! -d root_domains ]; then
 				mkdir root_domains
@@ -109,16 +153,16 @@ else
 		lastindex=`expr $lastindex +  1`
 		count=1
 
-		for i in "${arr[@]}"
+		for domain in "${arr[@]}"
 		do
-			if [ ! -d $i ]; then
+			if [ ! -d $domain ]; then
 				
 				echo " "
-				echo -e "${cyan}Scanning $i ${blue}       [ $count/$lastindex ] ${clr}"
+				echo -e "${blue}[ $count/$lastindex ] ${cyan}Scanning $domain ${clr}"
 				start_time=$(date +%s)
-				recon "$i"
+				recon "$domain"
 				end_time=$(date +%s)
-				echo -e "${red}$i completed in $(($end_time-$start_time)) seconds..!${clr}"
+				echo -e "${red}$domain completed in $(($end_time-$start_time)) seconds..!${clr}"
 				if [ $count -eq $lastindex ];then
 					subdomain_combiner
 					echo -e "\n${yellow}Hurray!!! Completed reconnaissance. Check $pwd/all-subdomains.txt for combined list of subdomains.${clr}"
@@ -142,29 +186,31 @@ magenta='\033[0;35m'
 cyan='\033[0;36m'
 clr='\033[0m'
 
-if [ ! -f $1 ];then
+input_file=$1
+if [ ! -f $input_file ];then
 		echo "Please provide a text file containing assets to scan..!"
 		echo "Example: autorecon.sh assets.txt"
 else
 		pwd=$(pwd)
 		arr=()
-		while IFS= read -r line; do
-		arr+=("$line")
-		done <$pwd/$1	
+		# while IFS= read -r line; do
+		# arr+=("$line")
+		# done <$pwd/$input_file
+		readarray arr <$pwd/$input_file	
 
 		indexes=( "${!arr[@]}" )
 		lastindex=${indexes[-1]}
 		lastindex=`expr $lastindex +  1`
 		count=1
 		
-		for i in "${arr[@]}"
+		for domain in "${arr[@]}"
 			do
-				filepath=$(find / -type d -name $i 2>/dev/null | head -n 1)
+				filepath=$(find / -type d -name $domain 2>/dev/null | head -n 1)
 				if [ -z "$filepath" ]; then
 					echo "Subdomain haven't recon yet. Please recon it before checking for new alive targets..!"
 				else
 					echo " "
-					echo -e "${cyan}Scanning $i ${blue}       [ $count/$lastindex ] ${clr}"
+					echo -e "${cyan}Scanning $domain ${blue}       [ $count/$lastindex ] ${clr}"
 					start_time=$(date +%s)
 					
 					cd $filepath
@@ -174,13 +220,13 @@ else
 					mkdir current_alive
 					cd current_alive
 					echo "Checking for new alive targets..."
-					recon "$i" > /dev/null 2>&1
+					recon "$domain" > /dev/null 2>&1
 
 					diff -u $filepath/ALIVE.txt $filepath/current_alive/$i/ALIVE.txt | sed -n '/^+[^+]/ s/^+//p' > new_alive_targets.txt
-					rm -rf $i 
+					rm -rf $domain 
 
 					end_time=$(date +%s)
-					echo -e "${red}$i completed in $(($end_time-$start_time)) seconds..!${clr}"
+					echo -e "${red}$domain completed in $(($end_time-$start_time)) seconds..!${clr}"
 					if [ $count -eq $lastindex ];then
 						echo -e "\n${yellow}Hurray!!! Completed recon. ${clr}"
 						echo -e "New targets are saved into new_alive_targets.txt under current_alive directory of the subdomain directory"
@@ -193,7 +239,7 @@ fi
 
 
 
-while getopts r:a: flag
+while getopts "r:a:h" flag
 do
     case "${flag}" in
         r) textfile=${OPTARG}
@@ -204,8 +250,26 @@ do
 		check_alive $textfile 
 		;;
 
-		*) 
+		h) #help
+		flag= ${OPTARG}
+		echo "Syntax: autorecon [-r|a] filename.txt
+options:
+r | --recon	Performs recon on the targets provided in the file.
+a | --alive	Checks for new alive targets by comparing the results from previous recon. Targets to recon should be passed inside a text file.
+		NOTE: 'To perform this function, make sure that recon is done on the targets provided'
+h | --help	Print this Help.
+
+NOTE: Please run this tool from where you want to output the results."
+		;;
+
+		:)
+		echo "Missing arguments"
+		exit
+		;;
+		
+		\?) 
 		echo "Please specify an argument"
+		exit
 		;;
     esac
 done
