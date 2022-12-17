@@ -26,9 +26,9 @@ recon () {
 
 		pwd=$(pwd)
 
-		# echo "Gathering information from amass..."
-		# amass enum -d $domain -o amass.txt > /dev/null 2>&1 &
-		# sleep 1
+		echo "Gathering information from amass..." 
+		amass enum -d $domain -o amass.txt > /dev/null 2>&1 &
+		sleep 1
 
 		echo "Gathering information from crtsh..."
 		crtsh -d $domain >> crtsh.txt &
@@ -38,9 +38,9 @@ recon () {
 		assetfinder --subs-only $domain >> assetfinder.txt &
 		sleep 1
 
-		# echo "Gathering information from sublist3r..."
-		# sublist3r -d $domain -o sublister.txt > /dev/null 2>&1 &
-		# sleep 1
+		echo "Gathering information from sublist3r..."
+		sublist3r -d $domain -o sublister.txt > /dev/null 2>&1 &
+		sleep 1
 
 		echo "Gathering information form findomain..."
 		findomain -t $domain -u findomain.txt > /dev/null 2>&1 &
@@ -70,10 +70,8 @@ recon () {
 			dig $hostname A +short >> ip.txt 
 		done
 		sort -u ip.txt | grep -oE '((1?[0-9][0-9]?|2[0-4][0-9]|25[0-5])\.){3}(1?[0-9][0-9]?|2[0-4][0-9]|25[0-5])' > ips.txt
-		masscan -iL ips.txt -p0-65535 --rate=10000 -oL scans/openports.txt > /dev/null 2>&1
+		masscan -iL ips.txt --top-ports 1000 --rate=10000 -oL scans/openports.txt > /dev/null 2>&1
 		rm ip.txt
-		#rustscan -u 5000 -a 'final_assets.txt' | grep "^Open" > scans/openports.txt &
-		#nmap -iL ALIVE.txt -T5 -oA scans/scanned.txt > /dev/null 2>&1 &		#rustscan
 		sleep 1
 		}
 
@@ -90,7 +88,6 @@ recon () {
 		screenshots(){
 		echo "Taking screenshots..."
 		gowitness file -f $pwd/ALIVE.txt --disable-logging
-		#eyewitness -f $pwd/ALIVE.txt -d screenshots --no-prompt > /dev/null 2>&1	#gowitness
 		}
 
 
@@ -112,9 +109,6 @@ subdomain_combiner(){
 	#collects all alive subdomains and combine it into a single file
 	pwd=$(pwd)
 	arr=()
-	# while IFS= read -r line; do
-	# arr+=("$line")
-	# done < <(find $pwd -type f -name "ALIVE.txt")
 	readarray arr < <(find $pwd -type f -name "ALIVE.txt")
 
 
@@ -140,9 +134,6 @@ else
 		pwd=$(pwd)
 
 		arr=()
-		# while IFS= read -r line; do
-		# arr+=("$line")
-		# done <$pwd/$input_file
 		readarray arr <$pwd/$input_file
 
 		if [ ! -d root_domains ]; then
@@ -192,9 +183,6 @@ if [ ! -f $input_file ];then
 else
 		pwd=$(pwd)
 		arr=()
-		# while IFS= read -r line; do
-		# arr+=("$line")
-		# done <$pwd/$input_file
 		readarray arr <$pwd/$input_file	
 
 		indexes=( "${!arr[@]}" )
@@ -238,41 +226,112 @@ fi
 
 
 
-while getopts "r:a:h" flag
+# while getopts "r:c:h" flag
+# do
+#     case "${flag}" in
+#         r) textfile=${OPTARG}
+# 		auto_recon $textfile 
+# 		;;
+
+#         a) textfile=${OPTARG}
+# 		check_alive $textfile 
+# 		;;
+
+# 		h) #help
+# 		flag= ${OPTARG}
+# 		echo "Syntax: autorecon [-r|c] filename.txt
+# options:
+# r | --recon	Performs recon on the targets provided in the file.
+# c | --check-alive	Checks for new alive targets by comparing the results from previous recon. Targets to recon should be passed inside a text file.
+# 		NOTE: 'To perform this function, make sure that recon is done on the targets provided'
+# h | --help	Print this Help.
+
+# NOTE: Please run this tool from where you want to output the results."
+# 		;;
+
+# 		:)
+# 		echo "Missing arguments"
+# 		exit
+# 		;;
+		
+# 		\?) 
+# 		echo "Please specify an argument"
+# 		exit
+# 		;;
+#     esac
+# done
+
+
+
+# Set default values for variables
+textfile=""
+recon_flag=0
+check_flag=0
+help_flag=0
+
+# Use ":" after options to specify that they have a required argument
+while getopts ":r:c:h|-help" flag
 do
     case "${flag}" in
         r) textfile=${OPTARG}
-		auto_recon $textfile 
-		;;
+           recon_flag=1
+           ;;
 
-        a) textfile=${OPTARG}
-		check_alive $textfile 
-		;;
+        c) textfile=${OPTARG}
+           check_flag=1
+           ;;
 
-		h) #help
-		flag= ${OPTARG}
-		echo "Syntax: autorecon [-r|a] filename.txt
-options:
-r | --recon	Performs recon on the targets provided in the file.
-a | --alive	Checks for new alive targets by comparing the results from previous recon. Targets to recon should be passed inside a text file.
-		NOTE: 'To perform this function, make sure that recon is done on the targets provided'
-h | --help	Print this Help.
+        h) help_flag=1
+           ;;
 
-NOTE: Please run this tool from where you want to output the results."
-		;;
+        :) echo "Error: Option -$OPTARG requires an argument."
+           exit 1
+           ;;
 
-		:)
-		echo "Missing arguments"
-		exit
-		;;
-		
-		\?) 
-		echo "Please specify an argument"
-		exit
-		;;
+        \?) echo "Error: Invalid option -$OPTARG"
+            exit 1
+            ;;
     esac
 done
 
+# Shift the remaining arguments to the left so that $1, $2, etc. refer to the non-option arguments
+shift $((OPTIND -1))
 
+# Check if more than one option was specified
+if ((recon_flag + check_flag + help_flag > 1))
+then
+    echo "Error: Only one option can be specified at a time."
+    exit 1
+fi
 
+# Perform the selected action
+if ((recon_flag))
+then
+    if [[ -z "$textfile" ]]; then
+        echo "Error: No text file provided for recon option. Use -h or --help for usage."
+        exit 1
+    fi
+    # Call the auto_recon function with the textfile as argument
+    auto_recon "$textfile"
+elif ((check_flag))
+then
+    if [[ -z "$textfile" ]]; then
+        echo "Error: No text file provided for check-alive option. Use -h or --help for usage."
+        exit 1
+    fi
+    # Call the check_alive function with the textfile as argument
+    check_alive "$textfile"
+elif ((help_flag))
+then
+    echo "Syntax: autorecon [-r|c] filename.txt
+options:
+r | --recon   Performs recon on the targets provided in the file.
+c | --check-alive   Checks for new alive targets by comparing the results from previous recon. Targets to recon should be passed inside a text file.
+    NOTE: 'To perform this function, make sure that recon is done on the targets provided'
+h | --help    Print this Help.
 
+NOTE: Please run this tool from where you want to output the results."
+else
+    echo "Error: No option was specified. Use -h or --help for usage information."
+    exit 1
+fi
