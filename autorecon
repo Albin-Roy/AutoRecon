@@ -26,23 +26,19 @@ recon () {
 
 		pwd=$(pwd)
 
-		echo "Gathering information from amass..." 
+		echo "Gathering subdomains from amass, crtsh, assetfinder, sublist3r and findomain..." 
 		amass enum -d $domain -o amass.txt > /dev/null 2>&1 &
 		sleep 1
 
-		echo "Gathering information from crtsh..."
 		crtsh -d $domain >> crtsh.txt &
 		sleep 1
 
-		echo "Gathering information from assetfinder..."
 		assetfinder --subs-only $domain >> assetfinder.txt &
 		sleep 1
 
-		echo "Gathering information from sublist3r..."
 		sublist3r -d $domain -o sublister.txt > /dev/null 2>&1 &
 		sleep 1
 
-		echo "Gathering information form findomain..."
 		findomain -t $domain -u findomain.txt > /dev/null 2>&1 &
 		sleep 1
 

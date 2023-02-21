@@ -70,6 +70,13 @@ else
         echo "gowitness already installed!"
     fi
 
+    if [ ! -f "$path/google-chrome" ]; then
+        wget https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb
+        sudo dpkg -i google-chrome-stable_current_amd64.deb
+    else
+        echo "Chrome already installed!"
+    fi
+
     if [ ! -f "$path/waybackurls" ]; then
         wget https://github.com/tomnomnom/waybackurls/releases/download/v0.1.0/waybackurls-linux-amd64-0.1.0.tgz
         tar -xvf waybackurls-linux-amd64-0.1.0.tgz
